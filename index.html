@@ -21,6 +21,9 @@
     .lesson { margin: 18px 0; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
     label { display: block; margin-bottom: 5px; }
     .footer { text-align: center; font-size: 0.9em; color: #666; margin-top: 24px; }
+    .nav { margin-bottom: 18px; }
+    .nav button { margin-right: 6px; }
+    .user-link { cursor: pointer; color: #0e90d2; text-decoration: underline; }
     @media (max-width: 500px) {
       .container { max-width: 99vw; padding: 2vw;}
       input[type="text"], input[type="password"] { width: 98vw;}
@@ -50,28 +53,65 @@
       <button style="float:right;" onclick="logout()">Logout</button>
       <div style="clear:both"></div>
     </div>
-    <h2>Lessons</h2>
+    <div class="nav">
+      <button onclick="showLessonsPage()" id="lessonsBtn" style="display:none;">Lessons</button>
+      <button onclick="showUsersPage()" id="usersBtn">Users</button>
+    </div>
     <div id="lessons"></div>
+    <div id="usersPage" style="display:none;">
+      <h2>All Users</h2>
+      <div id="usersList"></div>
+    </div>
+    <div id="profilePage" style="display:none;">
+      <h2>User Profile</h2>
+      <div id="profileInfo"></div>
+      <button onclick="showUsersPage()">Back to Users</button>
+    </div>
     <div class="footer">Language Learning Demo &copy; 2012</div>
   </div>
   <script>
     // === CONFIGURATION ===
-    // Replace with your actual backend URL
     const backend = "https://b1827891-3373-47ab-a0be-7451ac51ed33-00-2cqu0qkog5d85.sisko.replit.dev";
     // =====================
 
     let completedLessons = [];
 
-    // Helper: Show main or auth screen
     function showMain(username) {
       document.getElementById('auth').style.display = 'none';
       document.getElementById('main').style.display = '';
       document.getElementById('welcome').innerText = "Welcome, " + username + "!";
+      showLessonsPage();
       loadLessons();
     }
     function showAuth() {
       document.getElementById('auth').style.display = '';
       document.getElementById('main').style.display = 'none';
+    }
+
+    // Navigation
+    function showLessonsPage() {
+      document.getElementById('lessons').style.display = '';
+      document.getElementById('usersPage').style.display = 'none';
+      document.getElementById('profilePage').style.display = 'none';
+      document.getElementById('lessonsBtn').style.display = 'none';
+      document.getElementById('usersBtn').style.display = '';
+      loadLessons();
+    }
+    function showUsersPage() {
+      document.getElementById('lessons').style.display = 'none';
+      document.getElementById('usersPage').style.display = '';
+      document.getElementById('profilePage').style.display = 'none';
+      document.getElementById('lessonsBtn').style.display = '';
+      document.getElementById('usersBtn').style.display = 'none';
+      loadUsers();
+    }
+    function showProfilePage(username) {
+      document.getElementById('lessons').style.display = 'none';
+      document.getElementById('usersPage').style.display = 'none';
+      document.getElementById('profilePage').style.display = '';
+      document.getElementById('lessonsBtn').style.display = '';
+      document.getElementById('usersBtn').style.display = '';
+      loadProfile(username);
     }
 
     // Register
@@ -175,6 +215,32 @@
       } else {
         document.getElementById('res'+lesson_id).innerHTML = "Wrong! Correct: " + data.correct_answer;
       }
+    }
+
+    // Load all users
+    async function loadUsers() {
+      const res = await fetch(backend + '/api/users', {credentials: 'include'});
+      const users = await res.json();
+      let html = '<ul>';
+      for(let user of users) {
+        html += `<li><span class="user-link" onclick="showProfilePage('${user}')">${user}</span></li>`;
+      }
+      html += '</ul>';
+      document.getElementById('usersList').innerHTML = html;
+    }
+
+    // Load a user's profile
+    async function loadProfile(username) {
+      const res = await fetch(backend + `/api/profile/${username}`, {credentials: 'include'});
+      const data = await res.json();
+      if (data.error) {
+        document.getElementById('profileInfo').innerText = data.error;
+        return;
+      }
+      document.getElementById('profileInfo').innerHTML = `
+        <b>Username:</b> ${data.username}<br>
+        <b>Completed Lessons:</b> ${data.completed_lessons.length > 0 ? data.completed_lessons.join(', ') : 'None'}
+      `;
     }
 
     // On page load, check if already logged in
