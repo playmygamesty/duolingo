@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Duolingo Classic</title>
+  <meta name="viewport" content="width=400">
+  <style>
+    body { background: #e6e6e6; font-family: Verdana, Arial, sans-serif; margin: 0; padding: 0; }
+    .container { max-width: 400px; margin: 40px auto; background: #fff; border: 2px solid #0e90d2; padding: 24px; border-radius: 5px; box-shadow: 2px 2px 8px #bbb; }
+    h1 { color: #0e90d2; text-align: center; margin-bottom: 24px; }
+    h2 { color: #0e90d2; font-size: 1.2em; }
+    input[type="text"], input[type="password"] {
+      width: 95%; padding: 8px; margin: 6px 0 10px 0; border: 1px solid #aaa; border-radius: 2px;
+    }
+    button {
+      background: #0e90d2; color: #fff; border: none; padding: 8px 18px; border-radius: 3px; cursor: pointer; margin-top: 6px;
+      box-shadow: 1px 1px 2px #ccc;
+    }
+    .status { color: #b22222; margin: 8px 0; }
+    .completed { color: green; font-weight: bold; }
+    .lesson { margin: 18px 0; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+    label { display: block; margin-bottom: 5px; }
+    .footer { text-align: center; font-size: 0.9em; color: #666; margin-top: 24px; }
+    @media (max-width: 500px) {
+      .container { max-width: 99vw; padding: 2vw;}
+      input[type="text"], input[type="password"] { width: 98vw;}
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="auth">
+    <h1>Duolingo Classic</h1>
+    <div id="loginBox">
+      <h2>Login</h2>
+      <input type="text" id="login_user" placeholder="Username"><br>
+      <input type="password" id="login_pass" placeholder="Password"><br>
+      <button onclick="login()">Login</button>
+      <div class="status" id="loginMsg"></div>
+      <hr>
+      <h2>Register</h2>
+      <input type="text" id="reg_user" placeholder="Username"><br>
+      <input type="password" id="reg_pass" placeholder="Password"><br>
+      <button onclick="register()">Register</button>
+      <div class="status" id="regMsg"></div>
+    </div>
+  </div>
+  <div class="container" id="main" style="display:none;">
+    <div>
+      <span id="welcome"></span>
+      <button style="float:right;" onclick="logout()">Logout</button>
+      <div style="clear:both"></div>
+    </div>
+    <h2>Lessons</h2>
+    <div id="lessons"></div>
+    <div class="footer">Language Learning Demo &copy; 2012</div>
+  </div>
+  <script>
+    // === CONFIGURATION ===
+    // Replace with your actual backend URL
+    const backend = "YOUR_REPL_BACKEND_URL";
+    // =====================
+
+    let completedLessons = [];
+
+    // Helper: Show main or auth screen
+    function showMain(username) {
+      document.getElementById('auth').style.display = 'none';
+      document.getElementById('main').style.display = '';
+      document.getElementById('welcome').innerText = "Welcome, " + username + "!";
+      loadLessons();
+    }
+    function showAuth() {
+      document.getElementById('auth').style.display = '';
+      document.getElementById('main').style.display = 'none';
+    }
+
+    // Register
+    async function register() {
+      const username = document.getElementById('reg_user').value.trim();
+      const password = document.getElementById('reg_pass').value;
+      document.getElementById('regMsg').innerText = '';
+      if (!username || !password) {
+        document.getElementById('regMsg').innerText = 'Please fill all fields.';
+        return;
+      }
+      const res = await fetch(backend + '/api/register', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body:JSON.stringify({username, password})
+      });
+      const data = await res.json();
+      document.getElementById('regMsg').innerText = data.success ? "Registered! Please login." : (data.msg || "Error");
+    }
+
+    // Login
+    async function login() {
+      const username = document.getElementById('login_user').value.trim();
+      const password = document.getElementById('login_pass').value;
+      document.getElementById('loginMsg').innerText = '';
+      if (!username || !password) {
+        document.getElementById('loginMsg').innerText = 'Please fill all fields.';
+        return;
+      }
+      const res = await fetch(backend + '/api/login', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body:JSON.stringify({username, password})
+      });
+      const data = await res.json();
+      if (data.success) {
+        getUser();
+      } else {
+        document.getElementById('loginMsg').innerText = data.msg || "Login failed";
+      }
+    }
+
+    // Logout
+    async function logout() {
+      await fetch(backend + '/api/logout', {
+        method:'POST', credentials:'include'
+      });
+      showAuth();
+    }
+
+    // Get user info (to check session, get completed lessons)
+    async function getUser() {
+      const res = await fetch(backend + '/api/user', {credentials:'include'});
+      const data = await res.json();
+      if (data.logged_in) {
+        completedLessons = data.completed_lessons;
+        showMain(data.username);
+      } else {
+        showAuth();
+      }
+    }
+
+    // Load all lessons
+    async function loadLessons() {
+      const res = await fetch(backend + '/api/lessons', {credentials:'include'});
+      const lessons = await res.json();
+      let html = '';
+      for (let l of lessons) {
+        let done = completedLessons && completedLessons.includes(l.id.toString());
+        html += `<div class="lesson">
+          <b>${l.title}</b><br>
+          <i>${l.content}</i><br>
+          <div>${l.question}</div>
+          <form onsubmit="return false;">
+            ${l.choices.map(c=>`<label><input type="radio" name="ans${l.id}" value="${c}"> ${c}</label>`).join('')}
+            <button onclick="submitAnswer(${l.id})" ${done ? 'disabled' : ''}>Submit</button>
+            <span id="res${l.id}">${done?'<span class="completed">Completed</span>':''}</span>
+          </form>
+        </div>`;
+      }
+      document.getElementById('lessons').innerHTML = html;
+    }
+
+    // Answer a lesson
+    async function submitAnswer(lesson_id) {
+      let radios = document.getElementsByName('ans'+lesson_id);
+      let answer = null;
+      for (let radio of radios) if (radio.checked) answer = radio.value;
+      if (!answer) {
+        document.getElementById('res'+lesson_id).innerText = "Please select an answer.";
+        return;
+      }
+      const res = await fetch(backend + `/api/lesson/${lesson_id}/answer`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+        body:JSON.stringify({answer})
+      });
+      const data = await res.json();
+      if (data.correct) {
+        document.getElementById('res'+lesson_id).innerHTML = "<span class='completed'>Correct! Completed.</span>";
+        getUser();
+      } else {
+        document.getElementById('res'+lesson_id).innerHTML = "Wrong! Correct: " + data.correct_answer;
+      }
+    }
+
+    // On page load, check if already logged in
+    getUser();
+  </script>
+</body>
+</html>
