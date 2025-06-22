@@ -239,6 +239,7 @@
       }
       document.getElementById('profileInfo').innerHTML = `
         <b>Username:</b> ${data.username}<br>
+        <b>Account Created:</b> ${data.created_at}<br>
         <b>Completed Lessons:</b> ${data.completed_lessons.length > 0 ? data.completed_lessons.join(', ') : 'None'}
       `;
     }
